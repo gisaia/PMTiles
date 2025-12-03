@@ -90,6 +90,26 @@ export const leafletRasterLayer = (source: PMTiles, options: unknown) => {
   return new cls(options);
 };
 
+const isDeepEqual = (object1: any, object2: any) => {
+  const objKeys1 = Object.keys(object1);
+  const objKeys2 = Object.keys(object2);
+  if (objKeys1.length !== objKeys2.length)
+    return false;
+  for (var key of objKeys1) {
+    const value1 = object1[key];
+    const value2 = object2[key];
+    const isObjects = isObject(value1) && isObject(value2);
+    if (isObjects && !isDeepEqual(value1, value2) || !isObjects && value1 !== value2) {
+      return false;
+    }
+  }
+  return true;
+};
+
+const isObject = (object: any) => {
+  return object != null && typeof object === "object";
+};
+
 type GetResourceResponse<T> = ExpiryData & {
   data: T;
 };
@@ -209,8 +229,8 @@ export class Protocol {
     if (params.type === "json") {
       const pmtilesUrl = params.url.substr(10);
       let instance = this.tiles.get(pmtilesUrl);
-      if (!instance) {
-        instance = new PMTiles(pmtilesUrl);
+      if (!instance || !isDeepEqual((instance.source as any).customHeaders, params.headers)) {
+        instance = new PMTiles(pmtilesUrl, params.headers as Headers);
         this.tiles.set(pmtilesUrl, instance);
       }
 
@@ -245,8 +265,8 @@ export class Protocol {
     const pmtilesUrl = result[1];
 
     let instance = this.tiles.get(pmtilesUrl);
-    if (!instance) {
-      instance = new PMTiles(pmtilesUrl);
+    if (!instance || !isDeepEqual((instance.source as any).customHeaders, params.headers)) {
+      instance = new PMTiles(pmtilesUrl, params.headers as Headers);
       this.tiles.set(pmtilesUrl, instance);
     }
     const z = result[2];
