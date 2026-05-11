@@ -1,9 +1,22 @@
 # pmtiles
 
-`pip install pmtiles`
+```sh
+pip install pmtiles
+```
+
+## Running Tests
+
+```sh
+python -m unittest test/test_*
+```
+
+## Uploading build
+
+```sh
+python -m build
+twine upload dist/*
+```
 
 ## Status
 
-This library should be considered experimental.
-
-For async usage, see [aiopmtiles](https://github.com/developmentseed/aiopmtiles) (also experimental)
+For asynchronous I/O, see [aiopmtiles](https://github.com/developmentseed/aiopmtiles)

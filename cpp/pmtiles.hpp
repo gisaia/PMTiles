@@ -18,6 +18,7 @@ const uint8_t TILETYPE_PNG = 0x2;
 const uint8_t TILETYPE_JPEG = 0x3;
 const uint8_t TILETYPE_WEBP = 0x4;
 const uint8_t TILETYPE_AVIF = 0x5;
+const uint8_t TILETYPE_MLT = 0x6;
 
 const uint8_t COMPRESSION_UNKNOWN = 0x0;
 const uint8_t COMPRESSION_NONE = 0x1;
@@ -400,7 +401,7 @@ inline zxy tileid_to_zxy(uint64_t tileid) {
 		throw std::overflow_error("tile zoom exceeds 64-bit limit");
 	}
 	uint8_t z = (bit_width(3 * tileid + 1) - 1) / 2;
-	uint64_t acc = ((1L << (z * 2)) - 1) / 3;
+	uint64_t acc = ((1LL << (z * 2)) - 1) / 3;
 	uint64_t pos = tileid - acc;
 	uint32_t x = 0, y = 0;
 	for (uint8_t a = 0; a < z; a++) {

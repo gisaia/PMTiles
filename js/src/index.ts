@@ -205,6 +205,7 @@ export enum TileType {
   Jpeg = 3,
   Webp = 4,
   Avif = 5,
+  Mlt = 6,
 }
 
 export function tileTypeExt(t: TileType): string {
@@ -213,6 +214,7 @@ export function tileTypeExt(t: TileType): string {
   if (t === TileType.Jpeg) return ".jpg";
   if (t === TileType.Webp) return ".webp";
   if (t === TileType.Avif) return ".avif";
+  if (t === TileType.Mlt) return ".mlt";
   return "";
 }
 
@@ -343,19 +345,25 @@ export class FetchSource implements Source {
    * This should be used instead of maplibre's [transformRequest](https://maplibre.org/maplibre-gl-js/docs/API/classes/Map/#example) for PMTiles archives.
    */
   customHeaders: Headers;
+  credentials: "same-origin" | "include" | undefined;
   /** @hidden */
   mustReload: boolean;
   /** @hidden */
   chromeWindowsNoCache: boolean;
 
-  constructor(url: string, customHeaders: Headers = new Headers()) {
+  constructor(
+    url: string,
+    customHeaders: Headers = new Headers(),
+    credentials: "same-origin" | "include" | undefined = undefined
+  ) {
     this.url = url;
     this.customHeaders = customHeaders;
+    this.credentials = credentials;
     this.mustReload = false;
     let userAgent = "";
     if ("navigator" in globalThis) {
       //biome-ignore lint: cf workers
-      userAgent = (globalThis as any).navigator.userAgent || "";
+      userAgent = (globalThis as any).navigator?.userAgent ?? "";
     }
     const isWindows = userAgent.indexOf("Windows") > -1;
     const isChromiumBased = /Chrome|Chromium|Edg|OPR|Brave/.test(userAgent);
@@ -400,7 +408,7 @@ export class FetchSource implements Source {
     // * it requires CORS configuration becasue If-Match is not a CORs-safelisted header
     // CORs configuration should expose ETag.
     // if any etag mismatch is detected, we need to ignore the browser cache
-    let cache: string | undefined;
+    let cache: "no-store" | "reload" | undefined;
     if (this.mustReload) {
       cache = "reload";
     } else if (this.chromeWindowsNoCache) {
@@ -411,8 +419,8 @@ export class FetchSource implements Source {
       signal: signal,
       cache: cache,
       headers: requestHeaders,
-      //biome-ignore lint: "cache" is incompatible between cloudflare workers and browser
-    } as any);
+      credentials: this.credentials,
+    });
 
     // handle edge case where the archive is < 16384 kb total.
     if (offset === 0 && resp.status === 416) {
@@ -421,12 +429,13 @@ export class FetchSource implements Source {
         throw new Error("Missing content-length on 416 response");
       }
       const actualLength = +contentRange.substr(8);
+      requestHeaders.set("range", `bytes=0-${actualLength - 1}`);
       resp = await fetch(this.url, {
         signal: signal,
         cache: "reload",
-        headers: { range: `bytes=0-${actualLength - 1}` },
-        //biome-ignore lint: "cache" is incompatible between cloudflare workers and browser
-      } as any);
+        headers: requestHeaders,
+        credentials: this.credentials,
+      });
     }
 
     // if it's a weak etag, it's not useful for us, so ignore it.
@@ -547,23 +556,6 @@ function deserializeIndex(buffer: ArrayBuffer): Entry[] {
   }
 
   return entries;
-}
-
-function detectVersion(a: ArrayBuffer): number {
-  const v = new DataView(a);
-  if (v.getUint16(2, true) === 2) {
-    console.error(
-      "PMTiles spec version 2 is not supported; please see github.com/protomaps/PMTiles for tools to upgrade"
-    );
-    return 2;
-  }
-  if (v.getUint16(2, true) === 1) {
-    console.error(
-      "PMTiles spec version 1 is not supported; please see github.com/protomaps/PMTiles for tools to upgrade"
-    );
-    return 1;
-  }
-  return 3;
 }
 
 /**

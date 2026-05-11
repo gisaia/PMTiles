@@ -33,9 +33,12 @@ export const leafletRasterLayer = (source: PMTiles, options: unknown) => {
       };
       if (!loaded) {
         source.getHeader().then((header) => {
-          if (header.tileType === TileType.Mvt) {
+          if (
+            header.tileType === TileType.Mvt ||
+            header.tileType === TileType.Mlt
+          ) {
             console.error(
-              "Error: archive contains MVT vector tiles, but leafletRasterLayer is for displaying raster tiles. See https://github.com/protomaps/PMTiles/tree/main/js for details."
+              "Error: archive contains vector tiles, but leafletRasterLayer is for displaying raster tiles. See https://github.com/protomaps/PMTiles/tree/main/js for details."
             );
           } else if (header.tileType === 2) {
             mimeType = "image/png";
@@ -56,9 +59,11 @@ export const leafletRasterLayer = (source: PMTiles, options: unknown) => {
             const blob = new Blob([arr.data], { type: mimeType });
             const imageUrl = window.URL.createObjectURL(blob);
             el.src = imageUrl;
-            el.cancel = undefined;
-            done(undefined, el);
+          } else {
+            el.style.display = "none";
           }
+          el.cancel = undefined;
+          done(undefined, el);
         })
         .catch((e) => {
           if (e.name !== "AbortError") {
@@ -75,6 +80,7 @@ export const leafletRasterLayer = (source: PMTiles, options: unknown) => {
       }
 
       if (tile.el.cancel) tile.el.cancel();
+      if (tile.el.src) window.URL.revokeObjectURL(tile.el.src);
 
       tile.el.width = 0;
       tile.el.height = 0;
@@ -215,12 +221,13 @@ export class Protocol {
       }
 
       if (this.metadata) {
-        return {
-          data: await instance.getTileJson(params.url),
-        };
+        const data = await instance.getTileJson(params.url);
+        abortController.signal.throwIfAborted();
+        return { data };
       }
 
       const h = await instance.getHeader();
+      abortController.signal.throwIfAborted();
 
       if (h.minLon >= h.maxLon || h.minLat >= h.maxLat) {
         console.error(
@@ -253,8 +260,8 @@ export class Protocol {
     const x = result[3];
     const y = result[4];
 
-    const header = await instance.getHeader();
     const resp = await instance?.getZxy(+z, +x, +y, abortController.signal);
+    abortController.signal.throwIfAborted();
     if (resp) {
       return {
         data: new Uint8Array(resp.data),
@@ -262,7 +269,8 @@ export class Protocol {
         expires: resp.expires,
       };
     }
-    if (header.tileType === TileType.Mvt) {
+    const header = await instance.getHeader();
+    if (header.tileType === TileType.Mvt || header.tileType === TileType.Mlt) {
       if (this.errorOnMissingTile) {
         throw new Error("Tile not found.");
       }
